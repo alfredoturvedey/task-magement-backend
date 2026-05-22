@@ -63,15 +63,12 @@ export class ProjectsService {
 
   // Listar proyectos del usuario autenticado
   async findByUser(userId: string): Promise<Project[]> {
-    return this.projectsRepository
-      .createQueryBuilder('project')
-      .leftJoinAndSelect('project.owner', 'owner')
-      .leftJoinAndSelect('project.members', 'members')
-      .leftJoinAndSelect('project.tasks', 'tasks')
-      .where('project.ownerId = :userId OR members.id = :userId', { userId })
-      .distinct(true)
-      .orderBy('project.createdAt', 'DESC')
-      .getMany();
+    return this.projectsRepository.find({
+      where: [
+        { ownerId: userId },
+        { members: { id: userId } }, // Esto genera un INNER JOIN, no OR automático
+      ],
+    });
   }
 
   // Obtener un proyecto por ID
