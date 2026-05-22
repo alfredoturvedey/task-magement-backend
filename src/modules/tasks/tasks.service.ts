@@ -42,7 +42,14 @@ export class TasksService {
 
     // Validar que el usuario es propietario o miembro
     const isOwner = project.ownerId === userId;
-    const isMember = project.members.some((m) => m.id === userId);
+    //const isMember = project.members.some((m) => m.id === userId);
+    const isMember = await this.projectsRepository
+      .createQueryBuilder('project')
+      .innerJoin('project.members', 'members', 'members.id = :memberId', {
+        memberId: createTaskDto.assignedToId,
+      })
+      .where('project.id = :projectId', { projectId: createTaskDto.projectId })
+      .getOne();
 
     if (!isOwner && !isMember) {
       throw new ForbiddenException('No eres miembro de este proyecto');
@@ -51,7 +58,7 @@ export class TasksService {
     // Validar que el usuario asignado es miembro del proyecto
     if (
       createTaskDto.assignedToId !== userId &&
-      !project.members.some((m) => m.id === createTaskDto.assignedToId) &&
+      !isMember &&
       createTaskDto.assignedToId !== project.ownerId
     ) {
       throw new BadRequestException(

@@ -17,7 +17,7 @@ import { UpdateTaskDto } from './dto/update-task.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TaskStatus, TaskPriority } from './entities/task.entity';
 
-@Controller('api/projects/:projectId/tasks')
+@Controller('api/tasks')
 @UseGuards(JwtAuthGuard)
 export class TasksController {
   constructor(private readonly tasksService: TasksService) {}
@@ -35,11 +35,9 @@ export class TasksController {
   @Post(':userId')
   @HttpCode(HttpStatus.CREATED)
   async create(
-    @Param('projectId') projectId: string,
     @Body() createTaskDto: CreateTaskDto,
     @Param('userId') userId: string,
   ) {
-    createTaskDto.projectId = projectId;
     return this.tasksService.create(createTaskDto, userId);
   }
 
