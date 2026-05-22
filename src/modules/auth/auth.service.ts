@@ -1,26 +1,68 @@
-import { Injectable } from '@nestjs/common';
-import { CreateAuthDto } from './dto/register.dto';
-import { UpdateAuthDto } from './dto/login.dto';
+import {
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+} from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { UsersService } from '../users/users.service';
+import { RegisterDto } from './dto/register.dto';
+import { LoginDto } from './dto/login.dto';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AuthService {
-  create(createAuthDto: CreateAuthDto) {
-    return 'This action adds a new auth';
+  constructor(
+    private usersService: UsersService,
+    private jwtService: JwtService,
+  ) {}
+
+  async register(registerDto: RegisterDto) {
+    const existingUser = await this.usersService.findByEmail(registerDto.email);
+
+    if (existingUser) {
+      throw new ConflictException('El usuario con este email ya existe');
+    }
+
+    const user = await this.usersService.create(registerDto);
+
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      lastName: user.lastName,
+    };
   }
 
-  findAll() {
-    return `This action returns all auth`;
-  }
+  async login(loginDto: LoginDto) {
+    const user = await this.usersService.findByEmail(loginDto.email);
 
-  findOne(id: number) {
-    return `This action returns a #${id} auth`;
-  }
+    if (!user) {
+      throw new UnauthorizedException('Credenciales inválidas');
+    }
 
-  update(id: number, updateAuthDto: UpdateAuthDto) {
-    return `This action updates a #${id} auth`;
-  }
+    const passwordMatch = await bcrypt.compare(
+      loginDto.password,
+      user.password,
+    );
 
-  remove(id: number) {
-    return `This action removes a #${id} auth`;
+    if (!passwordMatch) {
+      throw new UnauthorizedException('Credenciales inválidas');
+    }
+
+    const payload = { sub: user.id, email: user.email };
+    const token = this.jwtService.sign(payload, {
+      secret: process.env.JWT_SECRET || 'your-secret-key',
+      expiresIn: '24h',
+    });
+
+    return {
+      access_token: token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        lastName: user.lastName,
+      },
+    };
   }
 }

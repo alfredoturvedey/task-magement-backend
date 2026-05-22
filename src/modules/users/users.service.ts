@@ -1,11 +1,11 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
-import { randomBytes, scrypt as _scrypt, timingSafeEqual } from 'crypto';
+import { timingSafeEqual, scrypt } from 'crypto';
 
 @Injectable()
 export class UsersService {
@@ -21,7 +21,7 @@ export class UsersService {
       password: hashedPassword,
     });
     const savedUser = await this.usersRepository.save(nuevo);
-    const { password, ...safeUser } = savedUser;
+    const { password,...safeUser } = savedUser;
     return safeUser as User;
   }
 
@@ -32,7 +32,13 @@ export class UsersService {
   async findByEmail(email: string): Promise<User | null> {
     return this.usersRepository.findOne({
       where: { email },
-      select: ['id', 'name', 'email', 'createdAt', 'password'],
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        createdAt: true,
+        password: true,
+      },
     });
   }
 
@@ -55,14 +61,36 @@ export class UsersService {
       return false;
     }
 
-    const derivedKey = (await scrypt(password, salt, 64)) as Buffer;
+    const derivedKey = await new Promise<Buffer>((resolve, reject) => {
+      scrypt(password, salt, 64, (err, derived) => {
+        if (err) reject(err);
+        else resolve(derived);
+      });
+    });
     const hashedBuffer = Buffer.from(key, 'hex');
     return timingSafeEqual(hashedBuffer, derivedKey);
   }
 
-  private async hashPassword(password: string): Promise<string> {
-    const salt = randomBytes(16).toString('hex');
-    const derivedKey = (await scrypt(password, salt, 64)) as Buffer;
-    return `${salt}:${derivedKey.toString('hex')}`;
+  async hashPassword(password: string): Promise<string> {
+    const salt = await bcrypt.genSalt(10);
+    return bcrypt.hash(password, salt);
+  }
+
+  async findAll(): Promise<User[]> {
+    return this.usersRepository.find({ where: { isActive: true } });
+  }
+
+  async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
+    const user = await this.findById(id);
+    if (!user) {
+      throw new NotFoundException('El usuario no existe');
+    }
+
+    Object.assign(user, updateUserDto);
+    return this.usersRepository.save(user);
+  }
+
+  async deactivate(id: string): Promise<void> {
+    await this.usersRepository.update(id, { isActive: false });
   }
 }

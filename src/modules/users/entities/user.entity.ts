@@ -26,11 +26,6 @@ export class User extends BaseEntity {
 
   // Proyectos a los que pertenece como miembro
   @ManyToMany(() => Project, (project) => project.members, { lazy: true })
-  @JoinTable({
-    name: 'project_members',
-    joinColumn: { name: 'user_id', referencedColumnName: 'id' },
-    inverseJoinColumn: { name: 'project_id', referencedColumnName: 'id' },
-  })
   projectMemberships: Project[];
 
   // Tareas asignadas a este usuario
