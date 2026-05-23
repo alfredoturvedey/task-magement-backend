@@ -45,9 +45,9 @@ export class TasksService {
     //const isMember = project.members.some((m) => m.id === userId);
     const isMember = await this.projectsRepository
       .createQueryBuilder('project')
-      .innerJoin('project.members', 'members', 'members.id = :memberId', {
-        memberId: createTaskDto.assignedToId,
-      })
+      // .innerJoin('project.members', 'members', 'members.id = :memberId', {
+      //   memberId: createTaskDto.assignedToId,
+      // })
       .where('project.id = :projectId', { projectId: createTaskDto.projectId })
       .getOne();
 
@@ -56,30 +56,30 @@ export class TasksService {
     }
 
     // Validar que el usuario asignado es miembro del proyecto
-    if (
-      createTaskDto.assignedToId !== userId &&
-      !isMember &&
-      createTaskDto.assignedToId !== project.ownerId
-    ) {
-      throw new BadRequestException(
-        'El usuario asignado no es miembro del proyecto',
-      );
-    }
+    // if (
+    //   createTaskDto.assignedToId !== userId &&
+    //   !isMember &&
+    //   createTaskDto.assignedToId !== project.ownerId
+    // ) {
+    //   throw new BadRequestException(
+    //     'El usuario asignado no es miembro del proyecto',
+    //   );
+    // }
 
-    const assignedUser = await this.usersRepository.findOne({
-      where: { id: createTaskDto.assignedToId },
-    });
+    // const assignedUser = await this.usersRepository.findOne({
+    //   where: { id: createTaskDto.assignedToId },
+    // });
 
-    if (!assignedUser) {
-      throw new NotFoundException('El usuario asignado no existe');
-    }
+    // if (!assignedUser) {
+    //   throw new NotFoundException('El usuario asignado no existe');
+    // }
 
     const task = this.tasksRepository.create({
       ...createTaskDto,
       project,
       projectId: createTaskDto.projectId,
-      assignedTo: assignedUser,
-      assignedToId: createTaskDto.assignedToId,
+      //assignedTo: assignedUser,
+      //assignedToId: createTaskDto.assignedToId,
     });
 
     return this.tasksRepository.save(task);

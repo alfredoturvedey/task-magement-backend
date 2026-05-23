@@ -32,7 +32,7 @@ export class TasksController {
   }
 
   // Crear una nueva tarea
-  @Post(':userId')
+  @Post('/:userId')
   @HttpCode(HttpStatus.CREATED)
   async create(
     @Body() createTaskDto: CreateTaskDto,
