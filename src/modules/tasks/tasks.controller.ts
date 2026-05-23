@@ -23,7 +23,7 @@ export class TasksController {
   constructor(private readonly tasksService: TasksService) {}
 
   // Listar tareas de un proyecto
-  @Get('/:userId')
+  @Get('/:userId/:projectId')
   async findByProject(
     @Param('projectId') projectId: string,
     @Param('userId') userId: string,

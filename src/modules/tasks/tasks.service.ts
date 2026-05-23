@@ -98,7 +98,14 @@ export class TasksService {
 
     // Validar que el usuario es miembro
     const isOwner = project.ownerId === userId;
-    const isMember = project.members.some((m) => m.id === userId);
+    //const isMember = project.members.some((m) => m.id === userId);
+    const isMember = await this.projectsRepository
+      .createQueryBuilder('project')
+      .innerJoin('project.members', 'members', 'members.id = :memberId', {
+        memberId: userId,
+      })
+      .where('project.id = :projectId', { projectId: projectId })
+      .getOne();
 
     if (!isOwner && !isMember) {
       throw new ForbiddenException('No eres miembro de este proyecto');
