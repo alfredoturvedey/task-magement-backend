@@ -70,7 +70,10 @@ export class TasksService {
         ? project.members.some((m) => m.id === createTaskDto.assignedToId)
         : false;
 
-      if (!isAssignedUserMember && createTaskDto.assignedToId !== project.ownerId) {
+      if (
+        !isAssignedUserMember &&
+        createTaskDto.assignedToId !== project.ownerId
+      ) {
         throw new BadRequestException(
           'El usuario asignado no es miembro del proyecto',
         );
@@ -202,7 +205,10 @@ export class TasksService {
         ? project.members.some((m) => m.id === updateTaskDto.assignedToId)
         : false;
 
-      if (!isAssignedUserMember && updateTaskDto.assignedToId !== project.ownerId) {
+      if (
+        !isAssignedUserMember &&
+        updateTaskDto.assignedToId !== project.ownerId
+      ) {
         throw new BadRequestException(
           'El usuario asignado no es miembro del proyecto',
         );
