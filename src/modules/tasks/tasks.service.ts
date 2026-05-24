@@ -46,47 +46,50 @@ export class TasksService {
 
     // Validar que el usuario es propietario o miembro
     const isOwner = project.ownerId === userId;
-    //const isMember = project.members.some((m) => m.id === userId);
-    const isMember = await this.projectsRepository
-      .createQueryBuilder('project')
-      // .innerJoin('project.members', 'members', 'members.id = :memberId', {
-      //   memberId: createTaskDto.assignedToId,
-      // })
-      .where('project.id = :projectId', { projectId: createTaskDto.projectId })
-      .getOne();
+    const isMember = Array.isArray(project.members)
+      ? project.members.some((m) => m.id === userId)
+      : false;
 
     if (!isOwner && !isMember) {
       throw new ForbiddenException('No eres miembro de este proyecto');
     }
 
-    // Validar que el usuario asignado es miembro del proyecto
-    // if (
-    //   createTaskDto.assignedToId !== userId &&
-    //   !isMember &&
-    //   createTaskDto.assignedToId !== project.ownerId
-    // ) {
-    //   throw new BadRequestException(
-    //     'El usuario asignado no es miembro del proyecto',
-    //   );
-    // }
+    let assignedUser: User | null = null;
 
-    // const assignedUser = await this.usersRepository.findOne({
-    //   where: { id: createTaskDto.assignedToId },
-    // });
+    // Validar que el usuario asignado es miembro del proyecto (si se proporciona)
+    if (createTaskDto.assignedToId) {
+      assignedUser = await this.usersRepository.findOne({
+        where: { id: createTaskDto.assignedToId },
+      });
 
-    // if (!assignedUser) {
-    //   throw new NotFoundException('El usuario asignado no existe');
-    // }
+      if (!assignedUser) {
+        throw new NotFoundException('El usuario asignado no existe');
+      }
+
+      const isAssignedUserMember = Array.isArray(project.members)
+        ? project.members.some((m) => m.id === createTaskDto.assignedToId)
+        : false;
+
+      if (!isAssignedUserMember && createTaskDto.assignedToId !== project.ownerId) {
+        throw new BadRequestException(
+          'El usuario asignado no es miembro del proyecto',
+        );
+      }
+    }
 
     const task = this.tasksRepository.create({
-      ...createTaskDto,
-      project,
+      name: createTaskDto.name,
+      description: createTaskDto.description,
+      priority: createTaskDto.priority,
       projectId: createTaskDto.projectId,
-      //assignedTo: assignedUser,
-      //assignedToId: createTaskDto.assignedToId,
+      project: project,
+      assignedToId: createTaskDto.assignedToId,
     });
 
-    return this.tasksRepository.save(task);
+    const savedTask = await this.tasksRepository.save(task);
+
+    // Retornar la tarea con las relaciones cargadas
+    return this.findOne(savedTask.id);
   }
 
   // Listar tareas de un proyecto específico
@@ -123,13 +126,16 @@ export class TasksService {
     const limit = pagination?.limit || 10;
     const skip = (page - 1) * limit;
 
-    const [data, total] = await this.tasksRepository.findAndCount({
-      where: { projectId },
-      relations: { assignedTo: true },
-      order: { createdAt: 'DESC' },
-      skip,
-      take: limit,
-    });
+    const [data, total] = await this.tasksRepository
+      .createQueryBuilder('task')
+      .leftJoinAndSelect('task.assignedTo', 'assignedTo')
+      .leftJoinAndSelect('task.project', 'project')
+      .leftJoinAndSelect('project.owner', 'owner')
+      .where('task.projectId = :projectId', { projectId })
+      .orderBy('task.createdAt', 'DESC')
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
 
     return {
       data,
@@ -142,10 +148,13 @@ export class TasksService {
 
   // Obtener una tarea por ID
   async findOne(id: string): Promise<Task> {
-    const task = await this.tasksRepository.findOne({
-      where: { id },
-      relations: { project: true, assignedTo: true },
-    });
+    const task = await this.tasksRepository
+      .createQueryBuilder('task')
+      .where('task.id = :id', { id })
+      .leftJoinAndSelect('task.project', 'project')
+      .leftJoinAndSelect('project.owner', 'owner')
+      .leftJoinAndSelect('task.assignedTo', 'assignedTo')
+      .getOne();
 
     if (!task) {
       throw new NotFoundException('La tarea no existe');
@@ -189,10 +198,11 @@ export class TasksService {
       updateTaskDto.assignedToId &&
       updateTaskDto.assignedToId !== task.assignedToId
     ) {
-      if (
-        !project.members.some((m) => m.id === updateTaskDto.assignedToId) &&
-        updateTaskDto.assignedToId !== project.ownerId
-      ) {
+      const isAssignedUserMember = Array.isArray(project.members)
+        ? project.members.some((m) => m.id === updateTaskDto.assignedToId)
+        : false;
+
+      if (!isAssignedUserMember && updateTaskDto.assignedToId !== project.ownerId) {
         throw new BadRequestException(
           'El usuario asignado no es miembro del proyecto',
         );
@@ -215,7 +225,10 @@ export class TasksService {
       assignedToId: updateTaskDto.assignedToId || task.assignedToId,
     });
 
-    return this.tasksRepository.save(task);
+    const savedTask = await this.tasksRepository.save(task);
+
+    // Retornar la tarea con las relaciones cargadas
+    return this.findOne(savedTask.id);
   }
 
   // Eliminar una tarea
@@ -287,7 +300,9 @@ export class TasksService {
     }
 
     task.status = status;
-    return this.tasksRepository.save(task);
+    const savedTask = await this.tasksRepository.save(task);
+
+    return this.findOne(savedTask.id);
   }
 
   // Cambiar prioridad de una tarea
@@ -320,6 +335,8 @@ export class TasksService {
     }
 
     task.priority = priority;
-    return this.tasksRepository.save(task);
+    const savedTask = await this.tasksRepository.save(task);
+
+    return this.findOne(savedTask.id);
   }
 }

@@ -35,7 +35,7 @@ export class Project extends BaseEntity {
   ownerId: string; // FK explícita para consultas directas
 
   // Miembros del proyecto
-  @ManyToMany(() => User, (user) => user.projectMemberships, { lazy: true })
+  @ManyToMany(() => User, (user) => user.projectMemberships)
   @JoinTable({
     name: 'project_members',
     joinColumn: { name: 'project_id', referencedColumnName: 'id' },
@@ -45,7 +45,6 @@ export class Project extends BaseEntity {
 
   // Tareas del proyecto
   @OneToMany(() => Task, (task) => task.project, {
-    lazy: true,
     onDelete: 'CASCADE',
   })
   tasks: Task[];

@@ -21,14 +21,14 @@ export class User extends BaseEntity {
   isActive: boolean;
 
   // Proyectos que este usuario crea (es el dueño/jefe)
-  @OneToMany(() => Project, (project) => project.owner, { lazy: true })
+  @OneToMany(() => Project, (project) => project.owner)
   ownedProjects: Project[];
 
   // Proyectos a los que pertenece como miembro
-  @ManyToMany(() => Project, (project) => project.members, { lazy: true })
+  @ManyToMany(() => Project, (project) => project.members)
   projectMemberships: Project[];
 
   // Tareas asignadas a este usuario
-  @OneToMany(() => Task, (task) => task.assignedTo, { lazy: true })
+  @OneToMany(() => Task, (task) => task.assignedTo)
   assignedTasks: Task[];
 }

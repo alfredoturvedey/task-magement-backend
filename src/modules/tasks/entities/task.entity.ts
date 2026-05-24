@@ -48,15 +48,11 @@ export class Task extends BaseEntity {
   @Column()
   projectId: string;
 
-  // Usuario al que está asignada la tarea
-  @ManyToOne(() => User, (user) => user.assignedTasks, {
-    onDelete: 'SET NULL',
-    nullable: true,
-    eager: true,
-  })
-  @JoinColumn({ name: 'assigned_to_id' })
-  assignedTo: User;
+  // Usuario asignado a la tarea
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'assignedToId' })
+  assignedTo?: User;
 
-  @Column({ nullable: true })
-  assignedToId: string;
+  @Column({ nullable: true, name: 'assignedToId' })
+  assignedToId?: string;
 }
