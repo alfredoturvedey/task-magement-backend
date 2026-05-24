@@ -17,8 +17,4 @@ export class CreateProjectDto {
   @IsString()
   @MaxLength(500, { message: 'La descripción no puede exceder 500 caracteres' })
   description?: string;
-
-  @IsNotEmpty({ message: 'El ID del usuario es requerido' })
-  @IsString()
-  userId: string; // Este campo se llenará automáticamente en el controlador
 }

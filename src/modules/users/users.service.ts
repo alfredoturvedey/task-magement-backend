@@ -21,7 +21,8 @@ export class UsersService {
       password: hashedPassword,
     });
     const savedUser = await this.usersRepository.save(nuevo);
-    const { password, ...safeUser } = savedUser;
+    const safeUser: Partial<User> = { ...savedUser };
+    delete safeUser.password;
     return safeUser as User;
   }
 
@@ -35,6 +36,7 @@ export class UsersService {
       select: {
         id: true,
         name: true,
+        lastName: true,
         email: true,
         createdAt: true,
         password: true,
@@ -86,7 +88,13 @@ export class UsersService {
       throw new NotFoundException('El usuario no existe');
     }
 
-    Object.assign(user, updateUserDto);
+    const dataToUpdate = { ...updateUserDto };
+
+    if (dataToUpdate.password) {
+      dataToUpdate.password = await this.hashPassword(dataToUpdate.password);
+    }
+
+    Object.assign(user, dataToUpdate);
     return this.usersRepository.save(user);
   }
 

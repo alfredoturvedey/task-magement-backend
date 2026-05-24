@@ -1,7 +1,7 @@
 import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
-import { Project } from 'src/modules/projects/entities/project.entity';
-import { User } from 'src/modules/users/entities/user.entity';
-import { BaseEntity } from 'src/shared/entity/base-entity';
+import { Project } from '../../projects/entities/project.entity';
+import { User } from '../../users/entities/user.entity';
+import { BaseEntity } from '../../../shared/entity/base-entity';
 
 export enum TaskStatus {
   PENDING = 'pending',

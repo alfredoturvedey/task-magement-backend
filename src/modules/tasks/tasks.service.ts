@@ -27,6 +27,54 @@ export class TasksService {
     private usersRepository: Repository<User>,
   ) {}
 
+  private async findTaskById(id: string): Promise<Task> {
+    const task = await this.tasksRepository
+      .createQueryBuilder('task')
+      .where('task.id = :id', { id })
+      .leftJoinAndSelect('task.project', 'project')
+      .leftJoinAndSelect('project.owner', 'owner')
+      .leftJoinAndSelect('project.members', 'members')
+      .leftJoinAndSelect('task.assignedTo', 'assignedTo')
+      .getOne();
+
+    if (!task) {
+      throw new NotFoundException('La tarea no existe');
+    }
+
+    return task;
+  }
+
+  private isProjectMember(project: Project, userId: string): boolean {
+    return (
+      project.ownerId === userId ||
+      (Array.isArray(project.members) &&
+        project.members.some((member) => member.id === userId))
+    );
+  }
+
+  private isAssignedUserInProject(project: Project, userId: string): boolean {
+    return (
+      project.ownerId === userId ||
+      (Array.isArray(project.members) &&
+        project.members.some((member) => member.id === userId))
+    );
+  }
+
+  private ensureCanManageTask(
+    task: Task,
+    project: Project,
+    userId: string,
+  ): void {
+    const isOwner = project.ownerId === userId;
+    const isAssignedToUser = task.assignedToId === userId;
+
+    if (!isOwner && !isAssignedToUser) {
+      throw new ForbiddenException(
+        'No tienes permisos para gestionar esta tarea',
+      );
+    }
+  }
+
   // Crear una nueva tarea
   async create(createTaskDto: CreateTaskDto, userId: string): Promise<Task> {
     const project = await this.projectsRepository.findOne({
@@ -44,36 +92,31 @@ export class TasksService {
       );
     }
 
-    // Validar que el usuario es propietario o miembro
-    const isOwner = project.ownerId === userId;
-    const isMember = Array.isArray(project.members)
-      ? project.members.some((m) => m.id === userId)
-      : false;
-
-    if (!isOwner && !isMember) {
+    if (!this.isProjectMember(project, userId)) {
       throw new ForbiddenException('No eres miembro de este proyecto');
+    }
+
+    const assignedToId = createTaskDto.assignedToId || userId;
+
+    if (project.ownerId !== userId && assignedToId !== userId) {
+      throw new ForbiddenException(
+        'Solo puedes crear tareas asignadas a ti mismo',
+      );
     }
 
     let assignedUser: User | null = null;
 
     // Validar que el usuario asignado es miembro del proyecto (si se proporciona)
-    if (createTaskDto.assignedToId) {
+    if (assignedToId) {
       assignedUser = await this.usersRepository.findOne({
-        where: { id: createTaskDto.assignedToId },
+        where: { id: assignedToId },
       });
 
       if (!assignedUser) {
         throw new NotFoundException('El usuario asignado no existe');
       }
 
-      const isAssignedUserMember = Array.isArray(project.members)
-        ? project.members.some((m) => m.id === createTaskDto.assignedToId)
-        : false;
-
-      if (
-        !isAssignedUserMember &&
-        createTaskDto.assignedToId !== project.ownerId
-      ) {
+      if (!this.isAssignedUserInProject(project, assignedToId)) {
         throw new BadRequestException(
           'El usuario asignado no es miembro del proyecto',
         );
@@ -86,13 +129,14 @@ export class TasksService {
       priority: createTaskDto.priority,
       projectId: createTaskDto.projectId,
       project: project,
-      assignedToId: createTaskDto.assignedToId,
+      assignedTo: assignedUser ?? undefined,
+      assignedToId,
     });
 
     const savedTask = await this.tasksRepository.save(task);
 
     // Retornar la tarea con las relaciones cargadas
-    return this.findOne(savedTask.id);
+    return this.findTaskById(savedTask.id);
   }
 
   // Listar tareas de un proyecto específico
@@ -110,18 +154,7 @@ export class TasksService {
       throw new NotFoundException('El proyecto no existe');
     }
 
-    // Validar que el usuario es miembro
-    const isOwner = project.ownerId === userId;
-    //const isMember = project.members.some((m) => m.id === userId);
-    const isMember = await this.projectsRepository
-      .createQueryBuilder('project')
-      .innerJoin('project.members', 'members', 'members.id = :memberId', {
-        memberId: userId,
-      })
-      .where('project.id = :projectId', { projectId: projectId })
-      .getOne();
-
-    if (!isOwner && !isMember) {
+    if (!this.isProjectMember(project, userId)) {
       throw new ForbiddenException('No eres miembro de este proyecto');
     }
 
@@ -150,17 +183,11 @@ export class TasksService {
   }
 
   // Obtener una tarea por ID
-  async findOne(id: string): Promise<Task> {
-    const task = await this.tasksRepository
-      .createQueryBuilder('task')
-      .where('task.id = :id', { id })
-      .leftJoinAndSelect('task.project', 'project')
-      .leftJoinAndSelect('project.owner', 'owner')
-      .leftJoinAndSelect('task.assignedTo', 'assignedTo')
-      .getOne();
+  async findOne(id: string, userId: string): Promise<Task> {
+    const task = await this.findTaskById(id);
 
-    if (!task) {
-      throw new NotFoundException('La tarea no existe');
+    if (!this.isProjectMember(task.project, userId)) {
+      throw new ForbiddenException('No eres miembro de este proyecto');
     }
 
     return task;
@@ -172,7 +199,7 @@ export class TasksService {
     updateTaskDto: UpdateTaskDto,
     userId: string,
   ): Promise<Task> {
-    const task = await this.findOne(id);
+    const task = await this.findTaskById(id);
     const project = await this.projectsRepository.findOne({
       where: { id: task.projectId },
       relations: { members: true },
@@ -188,7 +215,6 @@ export class TasksService {
       );
     }
 
-    // Solo el dueño del proyecto o quien asignó la tarea puede editarla
     const isOwner = project.ownerId === userId;
     const isAssignedToUser = task.assignedToId === userId;
 
@@ -196,19 +222,22 @@ export class TasksService {
       throw new ForbiddenException('No tienes permisos para editar esta tarea');
     }
 
+    if (
+      updateTaskDto.assignedToId &&
+      !isOwner &&
+      updateTaskDto.assignedToId !== task.assignedToId
+    ) {
+      throw new ForbiddenException(
+        'Solo el jefe del proyecto puede reasignar tareas',
+      );
+    }
+
     // Si se asigna a otro usuario, debe ser miembro del proyecto
     if (
       updateTaskDto.assignedToId &&
       updateTaskDto.assignedToId !== task.assignedToId
     ) {
-      const isAssignedUserMember = Array.isArray(project.members)
-        ? project.members.some((m) => m.id === updateTaskDto.assignedToId)
-        : false;
-
-      if (
-        !isAssignedUserMember &&
-        updateTaskDto.assignedToId !== project.ownerId
-      ) {
+      if (!this.isAssignedUserInProject(project, updateTaskDto.assignedToId)) {
         throw new BadRequestException(
           'El usuario asignado no es miembro del proyecto',
         );
@@ -234,12 +263,12 @@ export class TasksService {
     const savedTask = await this.tasksRepository.save(task);
 
     // Retornar la tarea con las relaciones cargadas
-    return this.findOne(savedTask.id);
+    return this.findTaskById(savedTask.id);
   }
 
   // Eliminar una tarea
   async remove(id: string, userId: string): Promise<void> {
-    const task = await this.findOne(id);
+    const task = await this.findTaskById(id);
     const project = await this.projectsRepository.findOne({
       where: { id: task.projectId },
     });
@@ -254,11 +283,7 @@ export class TasksService {
       );
     }
 
-    if (project.ownerId !== userId) {
-      throw new ForbiddenException(
-        'Solo el jefe del proyecto puede eliminar tareas',
-      );
-    }
+    this.ensureCanManageTask(task, project, userId);
 
     await this.tasksRepository.remove(task);
   }
@@ -281,7 +306,7 @@ export class TasksService {
     status: TaskStatus,
     userId: string,
   ): Promise<Task> {
-    const task = await this.findOne(id);
+    const task = await this.findTaskById(id);
     const project = await this.projectsRepository.findOne({
       where: { id: task.projectId },
     });
@@ -296,19 +321,12 @@ export class TasksService {
       );
     }
 
-    const isOwner = project.ownerId === userId;
-    const isAssignedToUser = task.assignedToId === userId;
-
-    if (!isOwner && !isAssignedToUser) {
-      throw new ForbiddenException(
-        'No tienes permisos para actualizar esta tarea',
-      );
-    }
+    this.ensureCanManageTask(task, project, userId);
 
     task.status = status;
     const savedTask = await this.tasksRepository.save(task);
 
-    return this.findOne(savedTask.id);
+    return this.findTaskById(savedTask.id);
   }
 
   // Cambiar prioridad de una tarea
@@ -317,7 +335,7 @@ export class TasksService {
     priority: TaskPriority,
     userId: string,
   ): Promise<Task> {
-    const task = await this.findOne(id);
+    const task = await this.findTaskById(id);
     const project = await this.projectsRepository.findOne({
       where: { id: task.projectId },
     });
@@ -332,17 +350,11 @@ export class TasksService {
       );
     }
 
-    const isOwner = project.ownerId === userId;
-
-    if (!isOwner) {
-      throw new ForbiddenException(
-        'Solo el jefe del proyecto puede cambiar la prioridad',
-      );
-    }
+    this.ensureCanManageTask(task, project, userId);
 
     task.priority = priority;
     const savedTask = await this.tasksRepository.save(task);
 
-    return this.findOne(savedTask.id);
+    return this.findTaskById(savedTask.id);
   }
 }

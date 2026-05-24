@@ -7,10 +7,11 @@ import {
   Put,
   Delete,
   UseGuards,
-  Request,
+  Request as RequestDecorator,
   HttpCode,
   HttpStatus,
   Query,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { ProjectsService } from './projects.service';
 import { CreateProjectDto } from './dto/create-project.dto';
@@ -20,6 +21,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ProjectOwnerGuard } from '../auth/guards/project-owner.guard';
 import { ProjectMemberGuard } from '../auth/guards/project-member.guard';
 import { PaginationDto } from '../../shared/dto/pagination.dto';
+import type { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
 
 @Controller('api/projects')
 @UseGuards(JwtAuthGuard)
@@ -27,25 +29,28 @@ export class ProjectsController {
   constructor(private readonly projectsService: ProjectsService) {}
 
   // Listar proyectos del usuario autenticado
-  @Get(':userId')
+  @Get()
   async findAll(
-    @Param('userId') userId: string,
+    @RequestDecorator() request: AuthenticatedRequest,
     @Query() pagination: PaginationDto,
   ) {
-    return this.projectsService.findByUser(userId, pagination);
+    return this.projectsService.findByUser(request.user.userId, pagination);
   }
 
   // Crear un nuevo proyecto
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  async create(@Body() createProjectDto: CreateProjectDto) {
-    return this.projectsService.create(createProjectDto);
+  async create(
+    @RequestDecorator() request: AuthenticatedRequest,
+    @Body() createProjectDto: CreateProjectDto,
+  ) {
+    return this.projectsService.create(createProjectDto, request.user.userId);
   }
 
   // Obtener un proyecto específico
   @Get(':id')
   @UseGuards(ProjectMemberGuard)
-  async findOne(@Param('id') id: string) {
+  async findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.projectsService.findOne(id);
   }
 
@@ -53,40 +58,52 @@ export class ProjectsController {
   @Put(':id')
   @UseGuards(ProjectOwnerGuard)
   async update(
-    @Param('id') id: string,
+    @RequestDecorator() request: AuthenticatedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() updateProjectDto: UpdateProjectDto,
   ) {
-    return this.projectsService.update(id, updateProjectDto);
+    return this.projectsService.update(
+      id,
+      request.user.userId,
+      updateProjectDto,
+    );
   }
 
   // Eliminar un proyecto
-  @Delete(':userId/:id')
+  @Delete(':id')
   @UseGuards(ProjectOwnerGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('userId') userId: string, @Param('id') id: string) {
-    await this.projectsService.remove(id, userId);
+  async remove(
+    @RequestDecorator() request: AuthenticatedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    await this.projectsService.remove(id, request.user.userId);
   }
 
   // Añadir miembro al proyecto
-  @Post(':userId/:id/members')
+  @Post(':id/members')
   @UseGuards(ProjectOwnerGuard)
   async addMember(
-    @Param('id') id: string,
-    @Param('userId') userId: string,
+    @RequestDecorator() request: AuthenticatedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() addMemberDto: AddMemberDto,
   ) {
-    return this.projectsService.addMember(id, userId, addMemberDto.userId);
+    return this.projectsService.addMember(
+      id,
+      request.user.userId,
+      addMemberDto.userId,
+    );
   }
 
   // Eliminar miembro del proyecto
-  @Delete(':userId/:id/members/:memberId')
+  @Delete(':id/members/:memberId')
   @UseGuards(ProjectOwnerGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   async removeMember(
-    @Param('id') id: string,
-    @Param('userId') userId: string,
-    @Param('memberId') memberId: string,
+    @RequestDecorator() request: AuthenticatedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('memberId', ParseUUIDPipe) memberId: string,
   ) {
-    await this.projectsService.removeMember(id, userId, memberId);
+    await this.projectsService.removeMember(id, request.user.userId, memberId);
   }
 }

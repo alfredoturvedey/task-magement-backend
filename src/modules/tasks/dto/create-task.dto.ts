@@ -25,9 +25,9 @@ export class CreateTaskDto {
   @IsUUID('4', { message: 'El ID debe ser un UUID válido' })
   projectId: string;
 
-  @IsOptional()
-  @IsUUID('4', { message: 'El ID debe ser un UUID válido' })
-  assignedToId?: string;
+  @IsNotEmpty({ message: 'El usuario asignado es requerido' })
+  @IsUUID('4', { message: 'El ID debe ser un UUID valido' })
+  assignedToId: string;
 
   @IsOptional()
   @IsEnum(TaskPriority, { message: 'La prioridad debe ser low, medium o high' })

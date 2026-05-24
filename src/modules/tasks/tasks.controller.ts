@@ -7,17 +7,20 @@ import {
   Put,
   Delete,
   UseGuards,
-  Request,
+  Request as RequestDecorator,
   HttpCode,
   HttpStatus,
   Query,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { TasksService } from './tasks.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { TaskStatus, TaskPriority } from './entities/task.entity';
 import { PaginationDto } from '../../shared/dto/pagination.dto';
+import type { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
+import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
+import { UpdateTaskPriorityDto } from './dto/update-task-priority.dto';
 
 @Controller('api/tasks')
 @UseGuards(JwtAuthGuard)
@@ -25,65 +28,79 @@ export class TasksController {
   constructor(private readonly tasksService: TasksService) {}
 
   // Listar tareas de un proyecto
-  @Get('/:userId/:projectId')
+  @Get('/project/:projectId')
   async findByProject(
-    @Param('projectId') projectId: string,
-    @Param('userId') userId: string,
+    @RequestDecorator() request: AuthenticatedRequest,
+    @Param('projectId', ParseUUIDPipe) projectId: string,
     @Query() pagination: PaginationDto,
   ) {
-    return this.tasksService.findByProject(projectId, userId, pagination);
+    return this.tasksService.findByProject(
+      projectId,
+      request.user.userId,
+      pagination,
+    );
   }
 
   // Crear una nueva tarea
-  @Post('/:userId')
+  @Post()
   @HttpCode(HttpStatus.CREATED)
   async create(
+    @RequestDecorator() request: AuthenticatedRequest,
     @Body() createTaskDto: CreateTaskDto,
-    @Param('userId') userId: string,
   ) {
-    return this.tasksService.create(createTaskDto, userId);
+    return this.tasksService.create(createTaskDto, request.user.userId);
   }
 
   // Obtener una tarea específica
   @Get(':id')
-  async findOne(@Param('id') id: string) {
-    return this.tasksService.findOne(id);
+  async findOne(
+    @RequestDecorator() request: AuthenticatedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.tasksService.findOne(id, request.user.userId);
   }
 
   // Actualizar una tarea
-  @Put(':userId/:id')
+  @Put(':id')
   async update(
-    @Param('id') id: string,
+    @RequestDecorator() request: AuthenticatedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() updateTaskDto: UpdateTaskDto,
-    @Param('userId') userId: string,
   ) {
-    return this.tasksService.update(id, updateTaskDto, userId);
+    return this.tasksService.update(id, updateTaskDto, request.user.userId);
   }
 
   // Cambiar estado de una tarea
-  @Put(':userId/:id/status')
+  @Put(':id/status')
   async updateStatus(
-    @Param('id') id: string,
-    @Param('userId') userId: string,
-    @Body() body: { status: TaskStatus },
+    @RequestDecorator() request: AuthenticatedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: UpdateTaskStatusDto,
   ) {
-    return this.tasksService.updateStatus(id, body.status, userId);
+    return this.tasksService.updateStatus(id, body.status, request.user.userId);
   }
 
   // Cambiar prioridad de una tarea
-  @Put(':userId/:id/priority')
+  @Put(':id/priority')
   async updatePriority(
-    @Param('id') id: string,
-    @Param('userId') userId: string,
-    @Body() body: { priority: TaskPriority },
+    @RequestDecorator() request: AuthenticatedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: UpdateTaskPriorityDto,
   ) {
-    return this.tasksService.updatePriority(id, body.priority, userId);
+    return this.tasksService.updatePriority(
+      id,
+      body.priority,
+      request.user.userId,
+    );
   }
 
   // Eliminar una tarea
-  @Delete(':userId/:id')
+  @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('id') id: string, @Param('userId') userId: string) {
-    await this.tasksService.remove(id, userId);
+  async remove(
+    @RequestDecorator() request: AuthenticatedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    await this.tasksService.remove(id, request.user.userId);
   }
 }

@@ -1,6 +1,6 @@
 import { Entity, ManyToOne, PrimaryColumn } from 'typeorm';
 import { Project } from './project.entity';
-import { User } from 'src/modules/users/entities/user.entity';
+import { User } from '../../users/entities/user.entity';
 
 @Entity('project_members')
 export class ProjectMember {

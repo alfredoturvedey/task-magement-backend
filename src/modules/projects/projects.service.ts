@@ -27,9 +27,12 @@ export class ProjectsService {
   ) {}
 
   // Crear un nuevo proyecto
-  async create(createProjectDto: CreateProjectDto): Promise<Project | null> {
+  async create(
+    createProjectDto: CreateProjectDto,
+    ownerId: string,
+  ): Promise<Project | null> {
     const user = await this.usersRepository.findOne({
-      where: { id: createProjectDto.userId },
+      where: { id: ownerId },
     });
 
     if (!user) {
@@ -41,7 +44,7 @@ export class ProjectsService {
       name: createProjectDto.name,
       description: createProjectDto.description,
       owner: user,
-      ownerId: createProjectDto.userId,
+      ownerId,
     });
 
     // Guardar el proyecto primero (esto genera el ID)
@@ -115,11 +118,12 @@ export class ProjectsService {
   // Actualizar un proyecto
   async update(
     id: string,
+    userId: string,
     updateProjectDto: UpdateProjectDto,
   ): Promise<Project> {
     const project = await this.findOne(id);
 
-    if (project.ownerId !== updateProjectDto.userId) {
+    if (project.ownerId !== userId) {
       throw new ForbiddenException('Solo el jefe del proyecto puede editarlo');
     }
 
