@@ -21,7 +21,7 @@ export class UsersService {
       password: hashedPassword,
     });
     const savedUser = await this.usersRepository.save(nuevo);
-    const { password,...safeUser } = savedUser;
+    const { password, ...safeUser } = savedUser;
     return safeUser as User;
   }
 
@@ -90,7 +90,11 @@ export class UsersService {
     return this.usersRepository.save(user);
   }
 
-  async deactivate(id: string): Promise<void> {
-    await this.usersRepository.update(id, { isActive: false });
+  async remove(id: string): Promise<void> {
+    const result = await this.usersRepository.delete(id);
+
+    if (!result.affected) {
+      throw new NotFoundException('El usuario no existe');
+    }
   }
 }
