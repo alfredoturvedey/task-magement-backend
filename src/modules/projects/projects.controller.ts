@@ -10,6 +10,7 @@ import {
   Request,
   HttpCode,
   HttpStatus,
+  Query,
 } from '@nestjs/common';
 import { ProjectsService } from './projects.service';
 import { CreateProjectDto } from './dto/create-project.dto';
@@ -18,6 +19,7 @@ import { AddMemberDto } from './dto/add-member.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ProjectOwnerGuard } from '../auth/guards/project-owner.guard';
 import { ProjectMemberGuard } from '../auth/guards/project-member.guard';
+import { PaginationDto } from '../../shared/dto/pagination.dto';
 
 @Controller('api/projects')
 @UseGuards(JwtAuthGuard)
@@ -26,8 +28,11 @@ export class ProjectsController {
 
   // Listar proyectos del usuario autenticado
   @Get(':userId')
-  async findAll(@Param('userId') userId: string) {
-    return this.projectsService.findByUser(userId);
+  async findAll(
+    @Param('userId') userId: string,
+    @Query() pagination: PaginationDto,
+  ) {
+    return this.projectsService.findByUser(userId, pagination);
   }
 
   // Crear un nuevo proyecto

@@ -10,12 +10,14 @@ import {
   Request,
   HttpCode,
   HttpStatus,
+  Query,
 } from '@nestjs/common';
 import { TasksService } from './tasks.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TaskStatus, TaskPriority } from './entities/task.entity';
+import { PaginationDto } from '../../shared/dto/pagination.dto';
 
 @Controller('api/tasks')
 @UseGuards(JwtAuthGuard)
@@ -27,8 +29,9 @@ export class TasksController {
   async findByProject(
     @Param('projectId') projectId: string,
     @Param('userId') userId: string,
+    @Query() pagination: PaginationDto,
   ) {
-    return this.tasksService.findByProject(projectId, userId);
+    return this.tasksService.findByProject(projectId, userId, pagination);
   }
 
   // Crear una nueva tarea

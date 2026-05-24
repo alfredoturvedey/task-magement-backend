@@ -11,6 +11,10 @@ import { User } from '../users/entities/user.entity';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { TasksService } from '../tasks/tasks.service';
+import {
+  PaginationDto,
+  PaginatedResult,
+} from '../../shared/dto/pagination.dto';
 
 @Injectable()
 export class ProjectsService {
@@ -62,13 +66,32 @@ export class ProjectsService {
   }
 
   // Listar proyectos del usuario autenticado
-  async findByUser(userId: string): Promise<Project[]> {
-    return this.projectsRepository.find({
-      where: [
-        { ownerId: userId },
-        { members: { id: userId } }, // Esto genera un INNER JOIN, no OR automático
-      ],
+  async findByUser(
+    userId: string,
+    pagination?: PaginationDto,
+  ): Promise<PaginatedResult<Project>> {
+    const page = pagination?.page || 1;
+    const limit = pagination?.limit || 10;
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await this.projectsRepository.findAndCount({
+      where: [{ ownerId: userId }, { members: { id: userId } }],
+      relations: {
+        owner: true,
+        members: true,
+      },
+      skip,
+      take: limit,
+      order: { createdAt: 'DESC' },
     });
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   // Obtener un proyecto por ID

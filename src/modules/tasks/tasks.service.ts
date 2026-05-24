@@ -11,6 +11,10 @@ import { Project } from '../projects/entities/project.entity';
 import { User } from '../users/entities/user.entity';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
+import {
+  PaginationDto,
+  PaginatedResult,
+} from '../../shared/dto/pagination.dto';
 
 @Injectable()
 export class TasksService {
@@ -86,7 +90,11 @@ export class TasksService {
   }
 
   // Listar tareas de un proyecto específico
-  async findByProject(projectId: string, userId: string): Promise<Task[]> {
+  async findByProject(
+    projectId: string,
+    userId: string,
+    pagination?: PaginationDto,
+  ): Promise<PaginatedResult<Task>> {
     const project = await this.projectsRepository.findOne({
       where: { id: projectId },
       relations: { members: true },
@@ -111,11 +119,25 @@ export class TasksService {
       throw new ForbiddenException('No eres miembro de este proyecto');
     }
 
-    return this.tasksRepository.find({
+    const page = pagination?.page || 1;
+    const limit = pagination?.limit || 10;
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await this.tasksRepository.findAndCount({
       where: { projectId },
       relations: { assignedTo: true },
       order: { createdAt: 'DESC' },
+      skip,
+      take: limit,
     });
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   // Obtener una tarea por ID
